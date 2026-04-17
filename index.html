@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Финансы — личный учёт</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0f0f11;
+    --surface: #17171b;
+    --surface2: #1e1e24;
+    --border: #2a2a35;
+    --accent: #c8f569;
+    --accent2: #69c8f5;
+    --accent3: #f5a469;
+    --danger: #f56969;
+    --muted: #5a5a6e;
+    --text: #e8e8f0;
+    --text2: #a0a0b8;
+    --font-head: 'Unbounded', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.6;
+    min-height: 100vh;
+    padding: 24px 20px 60px;
+  }
+
+  /* ── Header ── */
+  .header {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .header h1 {
+    font-family: var(--font-head);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: var(--accent);
+  }
+  .header .period {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  /* ── Tabs ── */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .tab-btn {
+    padding: 7px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text2);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .tab-btn:hover { border-color: var(--muted); color: var(--text); }
+  .tab-btn.active { background: var(--accent); color: #0f0f11; border-color: var(--accent); font-weight: 600; }
+
+  /* ── Dashboard ── */
+  .dash-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .kpi-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+  .kpi-value {
+    font-family: var(--font-head);
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -1px;
+  }
+  .kpi-value.green { color: var(--accent); }
+  .kpi-value.blue { color: var(--accent2); }
+  .kpi-value.orange { color: var(--accent3); }
+  .kpi-value.red { color: var(--danger); }
+  .kpi-sub {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* ── Savings bar ── */
+  .savings-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 28px;
+  }
+  .savings-bar-head {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-size: 11px;
+    color: var(--text2);
+  }
+  .bar-track {
+    height: 8px;
+    background: var(--surface2);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #9de044);
+    border-radius: 4px;
+    transition: width 0.5s ease;
+  }
+  .bar-fill.over { background: linear-gradient(90deg, var(--danger), #f59696); }
+
+  /* ── Tables ── */
+  .section-title {
+    font-family: var(--font-head);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .tbl-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    background: var(--surface2);
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+  }
+  tbody tr { border-bottom: 1px solid var(--border); }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: rgba(255,255,255,0.025); }
+  tbody td {
+    padding: 10px 12px;
+    color: var(--text);
+    vertical-align: middle;
+  }
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .tag-in { background: rgba(200,245,105,0.12); color: var(--accent); }
+  .tag-out { background: rgba(245,105,105,0.12); color: var(--danger); }
+  .tag-save { background: rgba(105,200,245,0.12); color: var(--accent2); }
+  .tag-debt { background: rgba(245,164,105,0.12); color: var(--accent3); }
+  .tag-project { background: rgba(160,105,245,0.12); color: #c099f5; }
+
+  .amt-pos { color: var(--accent); }
+  .amt-neg { color: var(--danger); }
+  .amt-neut { color: var(--accent2); }
+
+  /* ── Form ── */
+  .form-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .form-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .form-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 120px; }
+  .form-group label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .form-group input, .form-group select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 8px 10px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .form-group input:focus, .form-group select:focus { border-color: var(--accent); }
+  .form-group select option { background: #1e1e24; }
+
+  .btn {
+    padding: 9px 20px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn-primary { background: var(--accent); color: #0f0f11; }
+  .btn-primary:hover { background: #d4fb7a; }
+  .btn-sm {
+    padding: 4px 10px;
+    font-size: 11px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: var(--font-mono);
+  }
+  .btn-sm:hover { border-color: var(--danger); color: var(--danger); }
+
+  /* ── Projects ── */
+  .proj-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .proj-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .proj-name {
+    font-family: var(--font-head);
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: #c099f5;
+  }
+  .proj-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 11px; }
+  .proj-bar-wrap { margin-top: 10px; }
+  .proj-bar-track { height: 5px; background: var(--surface2); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+  .proj-bar-in { height: 100%; background: var(--accent); border-radius: 3px; }
+  .proj-bar-out { height: 100%; background: var(--danger); border-radius: 3px; position: relative; margin-top: -5px; opacity: 0.7; }
+  .proj-net-pos { color: var(--accent); font-weight: 600; font-size: 13px; }
+  .proj-net-neg { color: var(--danger); font-weight: 600; font-size: 13px; }
+
+  /* ── Debts ── */
+  .debt-status-paid { opacity: 0.45; text-decoration: line-through; }
+
+  /* ── Tabs visibility ── */
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── Empty state ── */
+  .empty { color: var(--muted); font-size: 12px; text-align: center; padding: 24px; }
+
+  /* ── Note ── */
+  .note {
+    background: rgba(200,245,105,0.06);
+    border: 1px solid rgba(200,245,105,0.15);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 11px;
+    color: var(--text2);
+    margin-bottom: 20px;
+    line-height: 1.7;
+  }
+  .note strong { color: var(--accent); }
+
+  .chip {
+    display: inline-block;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 10px;
+    color: var(--text2);
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>// финансы</h1>
+  <span class="period" id="currentPeriod"></span>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Обзор</button>
+  <button class="tab-btn" onclick="switchTab('transactions')">💸 Операции</button>
+  <button class="tab-btn" onclick="switchTab('savings')">🏦 Копилка</button>
+  <button class="tab-btn" onclick="switchTab('debts')">🤝 Долги</button>
+  <button class="tab-btn" onclick="switchTab('projects')">🚀 Проекты</button>
+</div>
+
+<!-- ═══════════════ DASHBOARD ═══════════════ -->
+<div id="tab-dashboard" class="tab-panel active">
+  <div class="dash-grid">
+    <div class="kpi">
+      <div class="kpi-label">Зарплата (месяц)</div>
+      <div class="kpi-value blue" id="kpi-salary">0 ₽</div>
+      <div class="kpi-sub">последнее пополнение</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Потрачено</div>
+      <div class="kpi-value red" id="kpi-spent">0 ₽</div>
+      <div class="kpi-sub">за текущий месяц</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Остаток</div>
+      <div class="kpi-value green" id="kpi-balance">0 ₽</div>
+      <div class="kpi-sub">доступно сейчас</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">В копилке</div>
+      <div class="kpi-value green" id="kpi-savings">0 ₽</div>
+      <div class="kpi-sub">накоплено всего</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Долги (мне дадут)</div>
+      <div class="kpi-value orange" id="kpi-debts-in">0 ₽</div>
+      <div class="kpi-sub">ожидается возврат</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Долги (я должен)</div>
+      <div class="kpi-value red" id="kpi-debts-out">0 ₽</div>
+      <div class="kpi-sub">обязательства</div>
+    </div>
+  </div>
+
+  <div class="savings-bar" id="savings-bar-block">
+    <div class="savings-bar-head">
+      <span>Бюджет месяца</span>
+      <span id="bar-label">—</span>
+    </div>
+    <div class="bar-track">
+      <div class="bar-fill" id="bar-fill" style="width:0%"></div>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>Логика копилки:</strong> при каждой зарплате сразу откладывай выбранный % — это «заплати себе первым». Если одалживаешь из копилки, фиксируй это как долг <em>перед самим собой</em> и возвращай при следующей зарплате.
+  </div>
+
+  <div class="section-title">Последние операции</div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Дата</th><th>Описание</th><th>Тип</th><th>Сумма</th><th>Счёт/Тег</th>
+        </tr>
+      </thead>
+      <tbody id="recent-tbody">
+        <tr><td colspan="5" class="empty">Операций пока нет. Добавь первую во вкладке «Операции».</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════ TRANSACTIONS ═══════════════ -->
+<div id="tab-transactions" class="tab-panel">
+  <div class="form-card">
+    <div class="section-title" style="margin-bottom:14px">Добавить операцию</div>
+    <div class="form-row">
+      <div class="form-group" style="min-width:110px; max-width:130px">
+        <label>Дата</label>
+        <input type="date" id="t-date">
+      </div>
+      <div class="form-group" style="flex:2">
+        <label>Описание</label>
+        <input type="text" id="t-desc" placeholder="Продукты, кофе, зарплата…">
+      </div>
+      <div class="form-group">
+        <label>Тип</label>
+        <select id="t-type">
+          <option value="income">💰 Доход (зарплата/прочее)</option>
+          <option value="expense" selected>💸 Расход</option>
+          <option value="savings_in">🏦 → Копилка</option>
+          <option value="savings_out">🏦 ← Из копилки</option>
+          <option value="debt_given">🤝 Дал в долг</option>
+          <option value="debt_received">🤝 Получил в долг</option>
+          <option value="debt_repaid_in">✅ Вернули мне</option>
+          <option value="debt_repaid_out">✅ Я вернул</option>
+        </select>
+      </div>
+      <div class="form-group" style="max-width:150px">
+        <label>Сумма, ₽</label>
+        <input type="number" id="t-amount" placeholder="0" min="0">
+      </div>
+      <div class="form-group">
+        <label>Счёт / тег</label>
+        <input type="text" id="t-account" placeholder="Тинькофф, наличные…">
+      </div>
+      <div class="form-group" style="max-width:80px">
+        <label>&nbsp;</label>
+        <button class="btn btn-primary" onclick="addTransaction()">+ Добавить</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Все операции</div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Дата</th><th>Описание</th><th>Тип</th><th>Сумма</th><th>Счёт</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="all-tbody">
+        <tr><td colspan="6" class="empty">Операций нет.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════ SAVINGS ═══════════════ -->
+<div id="tab-savings" class="tab-panel">
+  <div class="note">
+    <strong>Правило:</strong> при получении зарплаты → сначала перевести в копилку, потом жить на остаток.
+    Если берёшь из копилки — это <em>долг перед собой</em>. Фиксируй здесь и возвращай.
+  </div>
+
+  <div class="dash-grid" style="margin-bottom:20px">
+    <div class="kpi">
+      <div class="kpi-label">Итого в копилке</div>
+      <div class="kpi-value green" id="sav-total">0 ₽</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Внесено за всё время</div>
+      <div class="kpi-value blue" id="sav-in">0 ₽</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Взято из копилки</div>
+      <div class="kpi-value red" id="sav-out">0 ₽</div>
+    </div>
+  </div>
+
+  <div class="section-title">История копилки</div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>Дата</th><th>Описание</th><th>Движение</th><th>Сумма</th><th>Баланс после</th></tr>
+      </thead>
+      <tbody id="sav-tbody">
+        <tr><td colspan="5" class="empty">Нет операций по копилке.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════ DEBTS ═══════════════ -->
+<div id="tab-debts" class="tab-panel">
+  <div class="form-card">
+    <div class="section-title" style="margin-bottom:14px">Добавить долг</div>
+    <div class="form-row">
+      <div class="form-group" style="min-width:110px; max-width:130px">
+        <label>Дата</label>
+        <input type="date" id="d-date">
+      </div>
+      <div class="form-group" style="flex:2">
+        <label>Кто / описание</label>
+        <input type="text" id="d-who" placeholder="Имя или описание">
+      </div>
+      <div class="form-group">
+        <label>Направление</label>
+        <select id="d-dir">
+          <option value="out">🤝 Я дал в долг</option>
+          <option value="in">💰 Мне дали в долг</option>
+        </select>
+      </div>
+      <div class="form-group" style="max-width:150px">
+        <label>Сумма, ₽</label>
+        <input type="number" id="d-amount" placeholder="0" min="0">
+      </div>
+      <div class="form-group">
+        <label>Ожид. возврат</label>
+        <input type="date" id="d-due">
+      </div>
+      <div class="form-group" style="max-width:80px">
+        <label>&nbsp;</label>
+        <button class="btn btn-primary" onclick="addDebt()">+ Добавить</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Активные долги</div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>Дата</th><th>Кто</th><th>Направление</th><th>Сумма</th><th>Ожид. возврат</th><th>Статус</th><th></th></tr>
+      </thead>
+      <tbody id="debt-tbody">
+        <tr><td colspan="7" class="empty">Долгов нет. Хорошая новость!</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════ PROJECTS ═══════════════ -->
+<div id="tab-projects" class="tab-panel">
+  <div class="form-card">
+    <div class="section-title" style="margin-bottom:14px">Добавить проект</div>
+    <div class="form-row">
+      <div class="form-group" style="flex:2">
+        <label>Название проекта</label>
+        <input type="text" id="p-name" placeholder="Мишка Макс, Буся, личное…">
+      </div>
+      <div class="form-group" style="max-width:80px">
+        <label>&nbsp;</label>
+        <button class="btn btn-primary" onclick="addProject()">+ Добавить</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-card">
+    <div class="section-title" style="margin-bottom:14px">Операция по проекту</div>
+    <div class="form-row">
+      <div class="form-group" style="min-width:110px; max-width:130px">
+        <label>Дата</label>
+        <input type="date" id="pt-date">
+      </div>
+      <div class="form-group">
+        <label>Проект</label>
+        <select id="pt-project"></select>
+      </div>
+      <div class="form-group" style="flex:2">
+        <label>Описание</label>
+        <input type="text" id="pt-desc" placeholder="Реклама, продажа, подписчики…">
+      </div>
+      <div class="form-group">
+        <label>Тип</label>
+        <select id="pt-type">
+          <option value="income">💰 Доход</option>
+          <option value="expense">💸 Расход</option>
+        </select>
+      </div>
+      <div class="form-group" style="max-width:150px">
+        <label>Сумма, ₽</label>
+        <input type="number" id="pt-amount" placeholder="0" min="0">
+      </div>
+      <div class="form-group" style="max-width:80px">
+        <label>&nbsp;</label>
+        <button class="btn btn-primary" onclick="addProjectTx()">+ Добавить</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Проекты — P&L</div>
+  <div class="proj-grid" id="proj-grid">
+    <div class="empty" style="padding:20px 0">Проектов нет. Добавь первый выше.</div>
+  </div>
+
+  <div class="section-title">История операций по проектам</div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>Дата</th><th>Проект</th><th>Описание</th><th>Тип</th><th>Сумма</th><th></th></tr>
+      </thead>
+      <tbody id="ptx-tbody">
+        <tr><td colspan="6" class="empty">Нет операций.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────
+let state = {
+  transactions: [],
+  debts: [],
+  projects: [],
+  projectTx: []
+};
+
+// ── Persist ────────────────────────────────
+function save() { localStorage.setItem('fin_state', JSON.stringify(state)); }
+function load() {
+  const s = localStorage.getItem('fin_state');
+  if (s) state = JSON.parse(s);
+}
+
+// ── Helpers ────────────────────────────────
+function fmt(n) {
+  return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0 }).format(n) + ' ₽';
+}
+function today() { return new Date().toISOString().slice(0,10); }
+function setDefaultDates() {
+  ['t-date','d-date','pt-date'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = today();
+  });
+}
+
+// ── Tab switch ─────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+  render();
+}
+
+// ── Type helpers ───────────────────────────
+const TYPE_LABEL = {
+  income: ['💰 Доход', 'tag-in'],
+  expense: ['💸 Расход', 'tag-out'],
+  savings_in: ['🏦 → Копилка', 'tag-save'],
+  savings_out: ['🏦 ← Из копилки', 'tag-save'],
+  debt_given: ['🤝 Дал в долг', 'tag-debt'],
+  debt_received: ['💰 Получил в долг', 'tag-debt'],
+  debt_repaid_in: ['✅ Вернули мне', 'tag-in'],
+  debt_repaid_out: ['✅ Я вернул', 'tag-out']
+};
+
+// ── Add transaction ─────────────────────────
+function addTransaction() {
+  const date = document.getElementById('t-date').value;
+  const desc = document.getElementById('t-desc').value.trim();
+  const type = document.getElementById('t-type').value;
+  const amount = parseFloat(document.getElementById('t-amount').value);
+  const account = document.getElementById('t-account').value.trim();
+  if (!desc || !amount || amount <= 0) { alert('Заполни описание и сумму'); return; }
+  state.transactions.unshift({ id: Date.now(), date, desc, type, amount, account });
+  save(); render();
+  document.getElementById('t-desc').value = '';
+  document.getElementById('t-amount').value = '';
+  document.getElementById('t-account').value = '';
+}
+
+// ── Add debt ───────────────────────────────
+function addDebt() {
+  const date = document.getElementById('d-date').value;
+  const who = document.getElementById('d-who').value.trim();
+  const dir = document.getElementById('d-dir').value;
+  const amount = parseFloat(document.getElementById('d-amount').value);
+  const due = document.getElementById('d-due').value;
+  if (!who || !amount || amount <= 0) { alert('Заполни имя и сумму'); return; }
+  state.debts.push({ id: Date.now(), date, who, dir, amount, due, paid: false });
+  save(); render();
+  document.getElementById('d-who').value = '';
+  document.getElementById('d-amount').value = '';
+  document.getElementById('d-due').value = '';
+}
+
+function markDebt(id) {
+  const d = state.debts.find(x => x.id === id);
+  if (d) d.paid = !d.paid;
+  save(); render();
+}
+
+function deleteDebt(id) {
+  state.debts = state.debts.filter(x => x.id !== id);
+  save(); render();
+}
+
+// ── Projects ───────────────────────────────
+function addProject() {
+  const name = document.getElementById('p-name').value.trim();
+  if (!name) { alert('Введи название'); return; }
+  if (state.projects.find(p => p.name === name)) { alert('Проект уже есть'); return; }
+  state.projects.push({ id: Date.now(), name });
+  save(); render();
+  document.getElementById('p-name').value = '';
+}
+
+function addProjectTx() {
+  const date = document.getElementById('pt-date').value;
+  const projId = parseInt(document.getElementById('pt-project').value);
+  const desc = document.getElementById('pt-desc').value.trim();
+  const type = document.getElementById('pt-type').value;
+  const amount = parseFloat(document.getElementById('pt-amount').value);
+  if (!desc || !amount || amount <= 0) { alert('Заполни описание и сумму'); return; }
+  state.projectTx.unshift({ id: Date.now(), date, projId, desc, type, amount });
+  save(); render();
+  document.getElementById('pt-desc').value = '';
+  document.getElementById('pt-amount').value = '';
+}
+
+function deleteTx(id) {
+  state.transactions = state.transactions.filter(x => x.id !== id);
+  save(); render();
+}
+
+function deletePtx(id) {
+  state.projectTx = state.projectTx.filter(x => x.id !== id);
+  save(); render();
+}
+
+// ── Render ─────────────────────────────────
+function render() {
+  renderDashboard();
+  renderTransactions();
+  renderSavings();
+  renderDebts();
+  renderProjects();
+  updateProjectSelect();
+}
+
+function renderDashboard() {
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  document.getElementById('currentPeriod').textContent = now.toLocaleString('ru-RU', { month: 'long', year: 'numeric' });
+
+  const monthTx = state.transactions.filter(t => t.date.startsWith(ym));
+
+  const salary = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const spent = monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+
+  // Savings balance
+  const savIn = state.transactions.filter(t => t.type === 'savings_in').reduce((s, t) => s + t.amount, 0);
+  const savOut = state.transactions.filter(t => t.type === 'savings_out').reduce((s, t) => s + t.amount, 0);
+  const savBal = savIn - savOut;
+
+  // Debts
+  const debtsIn = state.debts.filter(d => d.dir === 'out' && !d.paid).reduce((s, d) => s + d.amount, 0);
+  const debtsOut = state.debts.filter(d => d.dir === 'in' && !d.paid).reduce((s, d) => s + d.amount, 0);
+
+  // Available balance = income - expense - savings_in + savings_out
+  const balance = salary - spent - (monthTx.filter(t => t.type === 'savings_in').reduce((s,t)=>s+t.amount,0))
+                + (monthTx.filter(t => t.type === 'savings_out').reduce((s,t)=>s+t.amount,0));
+
+  document.getElementById('kpi-salary').textContent = fmt(salary);
+  document.getElementById('kpi-spent').textContent = fmt(spent);
+  document.getElementById('kpi-balance').textContent = fmt(balance);
+  document.getElementById('kpi-balance').className = 'kpi-value ' + (balance >= 0 ? 'green' : 'red');
+  document.getElementById('kpi-savings').textContent = fmt(savBal);
+  document.getElementById('kpi-savings').className = 'kpi-value ' + (savBal >= 0 ? 'green' : 'red');
+  document.getElementById('kpi-debts-in').textContent = fmt(debtsIn);
+  document.getElementById('kpi-debts-out').textContent = fmt(debtsOut);
+
+  // Bar
+  const budget = salary;
+  const pct = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
+  const fill = document.getElementById('bar-fill');
+  fill.style.width = pct + '%';
+  fill.className = 'bar-fill' + (pct > 85 ? ' over' : '');
+  document.getElementById('bar-label').textContent = budget > 0
+    ? `${Math.round(pct)}% бюджета (${fmt(spent)} из ${fmt(budget)})`
+    : 'Добавь доход';
+
+  // Recent
+  const tbody = document.getElementById('recent-tbody');
+  const recent = state.transactions.slice(0, 7);
+  if (!recent.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">Операций нет.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = recent.map(t => {
+    const [label, cls] = TYPE_LABEL[t.type] || ['—', ''];
+    const isNeg = ['expense','savings_in','debt_given','debt_repaid_out'].includes(t.type);
+    return `<tr>
+      <td>${t.date}</td>
+      <td>${t.desc}</td>
+      <td><span class="tag ${cls}">${label}</span></td>
+      <td class="${isNeg ? 'amt-neg' : 'amt-pos'}">${isNeg ? '−' : '+'}${fmt(t.amount)}</td>
+      <td><span class="chip">${t.account || '—'}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderTransactions() {
+  const tbody = document.getElementById('all-tbody');
+  if (!state.transactions.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">Нет операций.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = state.transactions.map(t => {
+    const [label, cls] = TYPE_LABEL[t.type] || ['—', ''];
+    const isNeg = ['expense','savings_in','debt_given','debt_repaid_out'].includes(t.type);
+    return `<tr>
+      <td>${t.date}</td>
+      <td>${t.desc}</td>
+      <td><span class="tag ${cls}">${label}</span></td>
+      <td class="${isNeg ? 'amt-neg' : 'amt-pos'}">${isNeg ? '−' : '+'}${fmt(t.amount)}</td>
+      <td><span class="chip">${t.account || '—'}</span></td>
+      <td><button class="btn-sm" onclick="deleteTx(${t.id})">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderSavings() {
+  const savTx = state.transactions.filter(t => t.type === 'savings_in' || t.type === 'savings_out');
+  const savIn = savTx.filter(t => t.type === 'savings_in').reduce((s,t)=>s+t.amount,0);
+  const savOut = savTx.filter(t => t.type === 'savings_out').reduce((s,t)=>s+t.amount,0);
+  const savBal = savIn - savOut;
+  document.getElementById('sav-total').textContent = fmt(savBal);
+  document.getElementById('sav-total').className = 'kpi-value ' + (savBal >= 0 ? 'green' : 'red');
+  document.getElementById('sav-in').textContent = fmt(savIn);
+  document.getElementById('sav-out').textContent = fmt(savOut);
+
+  const tbody = document.getElementById('sav-tbody');
+  const sorted = [...savTx].sort((a,b) => a.date.localeCompare(b.date));
+  if (!sorted.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">Нет операций по копилке.</td></tr>';
+    return;
+  }
+  let running = 0;
+  const rows = sorted.map(t => {
+    const delta = t.type === 'savings_in' ? t.amount : -t.amount;
+    running += delta;
+    return `<tr>
+      <td>${t.date}</td>
+      <td>${t.desc}</td>
+      <td><span class="tag ${t.type === 'savings_in' ? 'tag-save' : 'tag-out'}">${t.type === 'savings_in' ? '+ Пополнение' : '− Снятие'}</span></td>
+      <td class="${delta >= 0 ? 'amt-pos' : 'amt-neg'}">${delta >= 0 ? '+' : ''}${fmt(delta)}</td>
+      <td class="${running >= 0 ? 'amt-pos' : 'amt-neg'}">${fmt(running)}</td>
+    </tr>`;
+  });
+  tbody.innerHTML = rows.reverse().join('');
+}
+
+function renderDebts() {
+  const tbody = document.getElementById('debt-tbody');
+  if (!state.debts.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">Долгов нет. Хорошая новость!</td></tr>';
+    return;
+  }
+  tbody.innerHTML = state.debts.map(d => {
+    const cls = d.paid ? 'debt-status-paid' : '';
+    const dir = d.dir === 'out'
+      ? '<span class="tag tag-debt">Я дал</span>'
+      : '<span class="tag tag-in">Мне дали</span>';
+    return `<tr class="${cls}">
+      <td>${d.date}</td>
+      <td>${d.who}</td>
+      <td>${dir}</td>
+      <td class="${d.dir === 'out' ? 'amt-neg' : 'amt-pos'}">${fmt(d.amount)}</td>
+      <td>${d.due || '—'}</td>
+      <td>${d.paid ? '✅ Закрыт' : '🕐 Активен'}</td>
+      <td style="display:flex;gap:4px">
+        <button class="btn-sm" onclick="markDebt(${d.id})">${d.paid ? 'Открыть' : '✓ Закрыть'}</button>
+        <button class="btn-sm" onclick="deleteDebt(${d.id})">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderProjects() {
+  const grid = document.getElementById('proj-grid');
+  if (!state.projects.length) {
+    grid.innerHTML = '<div class="empty" style="padding:20px 0">Проектов нет. Добавь первый выше.</div>';
+  } else {
+    grid.innerHTML = state.projects.map(p => {
+      const txs = state.projectTx.filter(t => t.projId === p.id);
+      const inc = txs.filter(t => t.type === 'income').reduce((s,t)=>s+t.amount,0);
+      const exp = txs.filter(t => t.type === 'expense').reduce((s,t)=>s+t.amount,0);
+      const net = inc - exp;
+      const maxAmt = Math.max(inc, exp, 1);
+      return `<div class="proj-card">
+        <div class="proj-name">🚀 ${p.name}</div>
+        <div class="proj-row"><span style="color:var(--text2)">Доходы</span><span class="amt-pos">${fmt(inc)}</span></div>
+        <div class="proj-row"><span style="color:var(--text2)">Расходы</span><span class="amt-neg">${fmt(exp)}</span></div>
+        <div class="proj-row"><span style="color:var(--text2)">Результат</span>
+          <span class="${net >= 0 ? 'proj-net-pos' : 'proj-net-neg'}">${net >= 0 ? '+' : ''}${fmt(net)}</span>
+        </div>
+        <div class="proj-bar-wrap">
+          <div style="font-size:10px;color:var(--muted)">Доходы / Расходы</div>
+          <div class="proj-bar-track"><div class="proj-bar-in" style="width:${(inc/maxAmt*100).toFixed(1)}%"></div></div>
+          <div class="proj-bar-track" style="margin-top:3px"><div class="proj-bar-out" style="width:${(exp/maxAmt*100).toFixed(1)}%;background:var(--danger)"></div></div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  const tbody = document.getElementById('ptx-tbody');
+  if (!state.projectTx.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">Нет операций.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = state.projectTx.map(t => {
+    const proj = state.projects.find(p => p.id === t.projId);
+    return `<tr>
+      <td>${t.date}</td>
+      <td><span class="tag tag-project">${proj ? proj.name : '—'}</span></td>
+      <td>${t.desc}</td>
+      <td><span class="tag ${t.type === 'income' ? 'tag-in' : 'tag-out'}">${t.type === 'income' ? '💰 Доход' : '💸 Расход'}</span></td>
+      <td class="${t.type === 'income' ? 'amt-pos' : 'amt-neg'}">${t.type === 'income' ? '+' : '−'}${fmt(t.amount)}</td>
+      <td><button class="btn-sm" onclick="deletePtx(${t.id})">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function updateProjectSelect() {
+  const sel = document.getElementById('pt-project');
+  if (!sel) return;
+  sel.innerHTML = state.projects.length
+    ? state.projects.map(p => `<option value="${p.id}">${p.name}</option>`).join('')
+    : '<option value="">— нет проектов —</option>';
+}
+
+// ── Init ───────────────────────────────────
+load();
+setDefaultDates();
+render();
+</script>
+</body>
+</html>

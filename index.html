@@ -687,10 +687,10 @@ async function loadState() {
     sb.from('projects').select('*').eq('user_id', uid).order('created_at', { ascending: true }),
     sb.from('project_tx').select('*').eq('user_id', uid).order('date', { ascending: false }),
   ]);
-  state.transactions = tx.data || [];
+  state.transactions = (tx.data || []).map(r => ({ ...r, desc: r.description }));
   state.debts = db.data || [];
   state.projects = pr.data || [];
-  state.projectTx = (ptx.data || []).map(r => ({ ...r, projId: r.proj_id }));
+  state.projectTx = (ptx.data || []).map(r => ({ ...r, desc: r.description, projId: r.proj_id }));
   render();
 }
 
@@ -729,9 +729,9 @@ async function addTransaction(overrides) {
   const account = (overrides && overrides.account) || document.getElementById('t-account').value.trim();
   if (!desc || !amount || amount <= 0) { alert('Заполни описание и сумму'); return; }
   const uid = await getUid();
-  const { data, error } = await sb.from('transactions').insert({ user_id: uid, date, desc, type, amount, account }).select().single();
+  const { data, error } = await sb.from('transactions').insert({ user_id: uid, date, description: desc, type, amount, account }).select().single();
   if (error) { alert('Ошибка сохранения: ' + error.message); return; }
-  state.transactions.unshift(data);
+  state.transactions.unshift({ ...data, desc: data.description });
   render();
   if (!overrides) {
     document.getElementById('t-desc').value = '';
@@ -796,9 +796,9 @@ async function addProjectTx() {
   const amount = parseFloat(document.getElementById('pt-amount').value);
   if (!desc || !amount || amount <= 0) { alert('Заполни описание и сумму'); return; }
   const uid = await getUid();
-  const { data, error } = await sb.from('project_tx').insert({ user_id: uid, date, proj_id: projId, desc, type, amount }).select().single();
+  const { data, error } = await sb.from('project_tx').insert({ user_id: uid, date, proj_id: projId, description: desc, type, amount }).select().single();
   if (error) { alert('Ошибка: ' + error.message); return; }
-  state.projectTx.unshift({ ...data, projId: data.proj_id });
+  state.projectTx.unshift({ ...data, desc: data.description, projId: data.proj_id });
   render();
   document.getElementById('pt-desc').value = '';
   document.getElementById('pt-amount').value = '';

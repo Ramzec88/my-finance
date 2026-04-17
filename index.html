@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Финансы — личный учёт</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -395,7 +396,7 @@
       </div>
       <div class="form-group" style="flex:2">
         <label>Описание</label>
-        <input type="text" id="t-desc" placeholder="Продукты, кофе, зарплата…">
+        <input type="text" id="t-desc" placeholder="Продукты, кофе, зарплата…" autocapitalize="sentences">
       </div>
       <div class="form-group">
         <label>Тип</label>
@@ -412,7 +413,7 @@
       </div>
       <div class="form-group" style="max-width:150px">
         <label>Сумма, ₽</label>
-        <input type="number" id="t-amount" placeholder="0" min="0">
+        <input type="number" id="t-amount" placeholder="0" min="0" inputmode="decimal">
       </div>
       <div class="form-group">
         <label>Счёт / тег</label>
@@ -486,7 +487,7 @@
       </div>
       <div class="form-group" style="flex:2">
         <label>Кто / описание</label>
-        <input type="text" id="d-who" placeholder="Имя или описание">
+        <input type="text" id="d-who" placeholder="Имя или описание" autocapitalize="words">
       </div>
       <div class="form-group">
         <label>Направление</label>
@@ -497,7 +498,7 @@
       </div>
       <div class="form-group" style="max-width:150px">
         <label>Сумма, ₽</label>
-        <input type="number" id="d-amount" placeholder="0" min="0">
+        <input type="number" id="d-amount" placeholder="0" min="0" inputmode="decimal">
       </div>
       <div class="form-group">
         <label>Ожид. возврат</label>
@@ -552,7 +553,7 @@
       </div>
       <div class="form-group" style="flex:2">
         <label>Описание</label>
-        <input type="text" id="pt-desc" placeholder="Реклама, продажа, подписчики…">
+        <input type="text" id="pt-desc" placeholder="Реклама, продажа, подписчики…" autocapitalize="sentences">
       </div>
       <div class="form-group">
         <label>Тип</label>
@@ -563,7 +564,7 @@
       </div>
       <div class="form-group" style="max-width:150px">
         <label>Сумма, ₽</label>
-        <input type="number" id="pt-amount" placeholder="0" min="0">
+        <input type="number" id="pt-amount" placeholder="0" min="0" inputmode="decimal">
       </div>
       <div class="form-group" style="max-width:80px">
         <label>&nbsp;</label>
@@ -591,20 +592,13 @@
 </div>
 
 <script>
-// ── State ──────────────────────────────────
-let state = {
-  transactions: [],
-  debts: [],
-  projects: [],
-  projectTx: []
-};
+// ── Supabase ────────────────────────────────
+const SUPABASE_URL = 'REPLACE_WITH_YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'REPLACE_WITH_YOUR_SUPABASE_ANON_KEY';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// ── Persist ────────────────────────────────
-function save() { localStorage.setItem('fin_state', JSON.stringify(state)); }
-function load() {
-  const s = localStorage.getItem('fin_state');
-  if (s) state = JSON.parse(s);
-}
+// ── State ──────────────────────────────────
+let state = { transactions: [], debts: [], projects: [], projectTx: [] };
 
 // ── Helpers ────────────────────────────────
 function fmt(n) {
@@ -616,6 +610,93 @@ function setDefaultDates() {
     const el = document.getElementById(id);
     if (el) el.value = today();
   });
+}
+
+// ── Auth ────────────────────────────────────
+function showLoginOverlay() {
+  if (document.getElementById('login-overlay')) return;
+  const o = document.createElement('div');
+  o.id = 'login-overlay';
+  o.style.cssText = 'position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;padding:24px;gap:16px';
+  o.innerHTML = `
+    <h2 style="font-family:var(--font-head);font-size:22px;color:var(--accent);margin:0">// финансы</h2>
+    <div style="width:100%;max-width:340px;display:flex;flex-direction:column;gap:12px">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="li-email" placeholder="you@example.com" autocomplete="email" style="width:100%">
+      </div>
+      <div class="form-group">
+        <label>Пароль</label>
+        <input type="password" id="li-pass" placeholder="••••••••" autocomplete="current-password" style="width:100%">
+      </div>
+      <div id="li-err" style="color:var(--danger);font-size:12px;min-height:16px"></div>
+      <button class="btn btn-primary" id="li-btn" onclick="doLogin()">Войти</button>
+      <button class="btn" onclick="doSignup()">Зарегистрироваться</button>
+    </div>`;
+  document.body.appendChild(o);
+  document.getElementById('li-email').focus();
+  document.getElementById('li-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+}
+
+function removeLoginOverlay() {
+  const o = document.getElementById('login-overlay');
+  if (o) o.remove();
+}
+
+async function doLogin() {
+  const email = document.getElementById('li-email').value.trim();
+  const pass = document.getElementById('li-pass').value;
+  document.getElementById('li-err').textContent = '';
+  document.getElementById('li-btn').textContent = '...';
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  document.getElementById('li-btn').textContent = 'Войти';
+  if (error) { document.getElementById('li-err').textContent = 'Неверный email или пароль'; return; }
+  removeLoginOverlay();
+  await loadState();
+  setDefaultDates();
+  checkMigration();
+}
+
+async function doSignup() {
+  const email = document.getElementById('li-email').value.trim();
+  const pass = document.getElementById('li-pass').value;
+  document.getElementById('li-err').textContent = '';
+  if (!email || pass.length < 6) { document.getElementById('li-err').textContent = 'Email и пароль (мин. 6 символов)'; return; }
+  const { error } = await sb.auth.signUp({ email, password: pass });
+  if (error) { document.getElementById('li-err').textContent = error.message; return; }
+  document.getElementById('li-err').style.color = 'var(--accent)';
+  document.getElementById('li-err').textContent = 'Проверь почту — подтверди регистрацию, затем войди.';
+}
+
+async function checkAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { showLoginOverlay(); return; }
+  await loadState();
+  setDefaultDates();
+  checkMigration();
+}
+
+// ── Load state from Supabase ────────────────
+async function loadState() {
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) { showLoginOverlay(); return; }
+  const uid = user.id;
+  const [tx, db, pr, ptx] = await Promise.all([
+    sb.from('transactions').select('*').eq('user_id', uid).order('date', { ascending: false }).order('created_at', { ascending: false }),
+    sb.from('debts').select('*').eq('user_id', uid).order('date', { ascending: false }),
+    sb.from('projects').select('*').eq('user_id', uid).order('created_at', { ascending: true }),
+    sb.from('project_tx').select('*').eq('user_id', uid).order('date', { ascending: false }),
+  ]);
+  state.transactions = tx.data || [];
+  state.debts = db.data || [];
+  state.projects = pr.data || [];
+  state.projectTx = (ptx.data || []).map(r => ({ ...r, projId: r.proj_id }));
+  render();
+}
+
+async function getUid() {
+  const { data: { user } } = await sb.auth.getUser();
+  return user ? user.id : null;
 }
 
 // ── Tab switch ─────────────────────────────
@@ -640,77 +721,101 @@ const TYPE_LABEL = {
 };
 
 // ── Add transaction ─────────────────────────
-function addTransaction() {
-  const date = document.getElementById('t-date').value;
-  const desc = document.getElementById('t-desc').value.trim();
-  const type = document.getElementById('t-type').value;
-  const amount = parseFloat(document.getElementById('t-amount').value);
-  const account = document.getElementById('t-account').value.trim();
+async function addTransaction(overrides) {
+  const date = (overrides && overrides.date) || document.getElementById('t-date').value;
+  const desc = (overrides && overrides.desc) || document.getElementById('t-desc').value.trim();
+  const type = (overrides && overrides.type) || document.getElementById('t-type').value;
+  const amount = parseFloat((overrides && overrides.amount) || document.getElementById('t-amount').value);
+  const account = (overrides && overrides.account) || document.getElementById('t-account').value.trim();
   if (!desc || !amount || amount <= 0) { alert('Заполни описание и сумму'); return; }
-  state.transactions.unshift({ id: Date.now(), date, desc, type, amount, account });
-  save(); render();
-  document.getElementById('t-desc').value = '';
-  document.getElementById('t-amount').value = '';
-  document.getElementById('t-account').value = '';
+  const uid = await getUid();
+  const { data, error } = await sb.from('transactions').insert({ user_id: uid, date, desc, type, amount, account }).select().single();
+  if (error) { alert('Ошибка сохранения: ' + error.message); return; }
+  state.transactions.unshift(data);
+  render();
+  if (!overrides) {
+    document.getElementById('t-desc').value = '';
+    document.getElementById('t-amount').value = '';
+    document.getElementById('t-account').value = '';
+  }
 }
 
 // ── Add debt ───────────────────────────────
-function addDebt() {
+async function addDebt() {
   const date = document.getElementById('d-date').value;
   const who = document.getElementById('d-who').value.trim();
   const dir = document.getElementById('d-dir').value;
   const amount = parseFloat(document.getElementById('d-amount').value);
   const due = document.getElementById('d-due').value;
   if (!who || !amount || amount <= 0) { alert('Заполни имя и сумму'); return; }
-  state.debts.push({ id: Date.now(), date, who, dir, amount, due, paid: false });
-  save(); render();
+  const uid = await getUid();
+  const { data, error } = await sb.from('debts').insert({ user_id: uid, date, who, dir, amount, due, paid: false }).select().single();
+  if (error) { alert('Ошибка сохранения: ' + error.message); return; }
+  state.debts.push(data);
+  render();
   document.getElementById('d-who').value = '';
   document.getElementById('d-amount').value = '';
   document.getElementById('d-due').value = '';
 }
 
-function markDebt(id) {
+async function markDebt(id) {
   const d = state.debts.find(x => x.id === id);
-  if (d) d.paid = !d.paid;
-  save(); render();
+  if (!d) return;
+  const newPaid = !d.paid;
+  const { error } = await sb.from('debts').update({ paid: newPaid }).eq('id', id);
+  if (error) { alert('Ошибка: ' + error.message); return; }
+  d.paid = newPaid;
+  render();
 }
 
-function deleteDebt(id) {
+async function deleteDebt(id) {
+  const { error } = await sb.from('debts').delete().eq('id', id);
+  if (error) { alert('Ошибка: ' + error.message); return; }
   state.debts = state.debts.filter(x => x.id !== id);
-  save(); render();
+  render();
 }
 
 // ── Projects ───────────────────────────────
-function addProject() {
+async function addProject() {
   const name = document.getElementById('p-name').value.trim();
   if (!name) { alert('Введи название'); return; }
   if (state.projects.find(p => p.name === name)) { alert('Проект уже есть'); return; }
-  state.projects.push({ id: Date.now(), name });
-  save(); render();
+  const uid = await getUid();
+  const { data, error } = await sb.from('projects').insert({ user_id: uid, name }).select().single();
+  if (error) { alert('Ошибка: ' + error.message); return; }
+  state.projects.push(data);
+  render();
   document.getElementById('p-name').value = '';
 }
 
-function addProjectTx() {
+async function addProjectTx() {
   const date = document.getElementById('pt-date').value;
   const projId = parseInt(document.getElementById('pt-project').value);
   const desc = document.getElementById('pt-desc').value.trim();
   const type = document.getElementById('pt-type').value;
   const amount = parseFloat(document.getElementById('pt-amount').value);
   if (!desc || !amount || amount <= 0) { alert('Заполни описание и сумму'); return; }
-  state.projectTx.unshift({ id: Date.now(), date, projId, desc, type, amount });
-  save(); render();
+  const uid = await getUid();
+  const { data, error } = await sb.from('project_tx').insert({ user_id: uid, date, proj_id: projId, desc, type, amount }).select().single();
+  if (error) { alert('Ошибка: ' + error.message); return; }
+  state.projectTx.unshift({ ...data, projId: data.proj_id });
+  render();
   document.getElementById('pt-desc').value = '';
   document.getElementById('pt-amount').value = '';
 }
 
-function deleteTx(id) {
+async function deleteTx(id) {
+  const { error } = await sb.from('transactions').delete().eq('id', id);
+  if (error) { alert('Ошибка: ' + error.message); return; }
   state.transactions = state.transactions.filter(x => x.id !== id);
-  save(); render();
+  render();
 }
 
-function deletePtx(id) {
+async function deletePtx(id) {
+  const { error } = await sb.from('project_tx').delete().eq('id', id);
+  if (error) { alert('Ошибка: ' + error.message); return; }
   state.projectTx = state.projectTx.filter(x => x.id !== id);
-  save(); render();
+  render();
 }
 
 // ── Render ─────────────────────────────────
@@ -915,10 +1020,114 @@ function updateProjectSelect() {
     : '<option value="">— нет проектов —</option>';
 }
 
+// ── Migrate from localStorage ───────────────
+async function checkMigration() {
+  const raw = localStorage.getItem('fin_state');
+  if (!raw) return;
+  let old;
+  try { old = JSON.parse(raw); } catch { localStorage.removeItem('fin_state'); return; }
+  if (!((old.transactions && old.transactions.length) ||
+        (old.debts && old.debts.length) ||
+        (old.projects && old.projects.length))) {
+    localStorage.removeItem('fin_state');
+    return;
+  }
+  if (!confirm(`Найдены старые данные в браузере (${old.transactions.length} операций, ${old.debts.length} долгов, ${old.projects.length} проектов). Перенести их в Supabase?`)) return;
+  const uid = await getUid();
+  try {
+    if (old.transactions && old.transactions.length) {
+      const rows = old.transactions.map(({ date, desc, type, amount, account }) => ({ user_id: uid, date, desc, type, amount: +amount, account: account || '' }));
+      await sb.from('transactions').insert(rows);
+    }
+    if (old.debts && old.debts.length) {
+      const rows = old.debts.map(({ date, who, dir, amount, due, paid }) => ({ user_id: uid, date, who, dir, amount: +amount, due: due || '', paid: !!paid }));
+      await sb.from('debts').insert(rows);
+    }
+    if (old.projects && old.projects.length) {
+      for (const p of old.projects) {
+        const { data: proj } = await sb.from('projects').insert({ user_id: uid, name: p.name }).select().single();
+        if (proj && old.projectTx) {
+          const ptRows = old.projectTx.filter(t => t.projId === p.id).map(({ date, desc, type, amount }) => ({ user_id: uid, date, proj_id: proj.id, desc, type, amount: +amount }));
+          if (ptRows.length) await sb.from('project_tx').insert(ptRows);
+        }
+      }
+    }
+    localStorage.removeItem('fin_state');
+    alert('Данные успешно перенесены!');
+    await loadState();
+  } catch (e) {
+    alert('Ошибка при переносе: ' + e.message);
+  }
+}
+
+// ── FAB (floating quick-add for mobile) ─────
+function injectFAB() {
+  if (window.innerWidth >= 640) return;
+  const fab = document.createElement('button');
+  fab.id = 'fab-quick';
+  fab.textContent = '+';
+  fab.style.cssText = 'position:fixed;bottom:24px;right:20px;width:52px;height:52px;border-radius:50%;background:var(--accent);color:var(--bg);font-size:28px;font-weight:700;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;line-height:1';
+  fab.onclick = showFABModal;
+  document.body.appendChild(fab);
+}
+
+function showFABModal() {
+  if (document.getElementById('fab-modal')) return;
+  const m = document.createElement('div');
+  m.id = 'fab-modal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:flex-end;justify-content:center;z-index:1001;padding:0';
+  m.innerHTML = `
+    <div style="background:var(--surface);border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:480px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-family:var(--font-head);font-size:14px;color:var(--accent)">Быстрое добавление</span>
+        <button onclick="document.getElementById('fab-modal').remove()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0">✕</button>
+      </div>
+      <div class="form-group">
+        <label>Дата</label>
+        <input type="date" id="fab-date" style="width:100%">
+      </div>
+      <div class="form-group">
+        <label>Описание</label>
+        <input type="text" id="fab-desc" placeholder="Продукты, кофе…" autocapitalize="sentences" style="width:100%">
+      </div>
+      <div class="form-group">
+        <label>Тип</label>
+        <select id="fab-type" style="width:100%">
+          <option value="expense" selected>💸 Расход</option>
+          <option value="income">💰 Доход</option>
+          <option value="savings_in">🏦 → Копилка</option>
+          <option value="savings_out">🏦 ← Из копилки</option>
+          <option value="debt_given">🤝 Дал в долг</option>
+          <option value="debt_received">🤝 Получил в долг</option>
+          <option value="debt_repaid_in">✅ Вернули мне</option>
+          <option value="debt_repaid_out">✅ Я вернул</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Сумма, ₽</label>
+        <input type="number" id="fab-amount" placeholder="0" min="0" inputmode="decimal" style="width:100%">
+      </div>
+      <button class="btn btn-primary" style="width:100%" onclick="submitFAB()">Сохранить</button>
+    </div>`;
+  m.querySelector('#fab-date').value = today();
+  m.addEventListener('click', e => { if (e.target === m) m.remove(); });
+  document.body.appendChild(m);
+  setTimeout(() => m.querySelector('#fab-desc').focus(), 50);
+}
+
+async function submitFAB() {
+  const date = document.getElementById('fab-date').value;
+  const desc = document.getElementById('fab-desc').value.trim();
+  const type = document.getElementById('fab-type').value;
+  const amount = document.getElementById('fab-amount').value;
+  await addTransaction({ date, desc, type, amount, account: '' });
+  const m = document.getElementById('fab-modal');
+  if (m) m.remove();
+}
+
 // ── Init ───────────────────────────────────
-load();
-setDefaultDates();
-render();
+checkAuth();
+injectFAB();
 </script>
 </body>
 </html>

@@ -409,6 +409,8 @@
           <option value="debt_received">🤝 Получил в долг</option>
           <option value="debt_repaid_in">✅ Вернули мне</option>
           <option value="debt_repaid_out">✅ Я вернул</option>
+          <option value="balance_init">💼 Нач. остаток счёта</option>
+          <option value="savings_init">🏦 Нач. остаток копилки</option>
         </select>
       </div>
       <div class="form-group" style="max-width:150px">
@@ -757,7 +759,9 @@ const TYPE_LABEL = {
   debt_given: ['🤝 Дал в долг', 'tag-debt'],
   debt_received: ['💰 Получил в долг', 'tag-debt'],
   debt_repaid_in: ['✅ Вернули мне', 'tag-in'],
-  debt_repaid_out: ['✅ Я вернул', 'tag-out']
+  debt_repaid_out: ['✅ Я вернул', 'tag-out'],
+  balance_init: ['💼 Нач. остаток', 'tag-in'],
+  savings_init: ['🏦 Нач. копилка', 'tag-save']
 };
 
 // ── Add transaction ─────────────────────────
@@ -851,6 +855,52 @@ async function deleteTx(id) {
   render();
 }
 
+function showEditModal(id) {
+  const t = state.transactions.find(x => x.id === id);
+  if (!t) return;
+  if (document.getElementById('edit-modal')) return;
+  const typeOptions = [
+    ['income','💰 Доход'],['expense','💸 Расход'],['savings_in','🏦 → Копилка'],
+    ['savings_out','🏦 ← Из копилки'],['debt_given','🤝 Дал в долг'],
+    ['debt_received','🤝 Получил в долг'],['debt_repaid_in','✅ Вернули мне'],
+    ['debt_repaid_out','✅ Я вернул'],['balance_init','💼 Нач. остаток счёта'],
+    ['savings_init','🏦 Нач. остаток копилки']
+  ].map(([v,l]) => `<option value="${v}"${t.type===v?' selected':''}>${l}</option>`).join('');
+  const m = document.createElement('div');
+  m.id = 'edit-modal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:1001;padding:16px';
+  m.innerHTML = `
+    <div style="background:var(--surface);border-radius:12px;padding:20px;width:100%;max-width:420px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-family:var(--font-head);font-size:14px;color:var(--accent)">Редактировать операцию</span>
+        <button onclick="document.getElementById('edit-modal').remove()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0">✕</button>
+      </div>
+      <div class="form-group"><label>Дата</label><input type="date" id="ed-date" value="${t.date}" style="width:100%"></div>
+      <div class="form-group"><label>Описание</label><input type="text" id="ed-desc" value="${t.desc}" autocapitalize="sentences" style="width:100%"></div>
+      <div class="form-group"><label>Тип</label><select id="ed-type" style="width:100%">${typeOptions}</select></div>
+      <div class="form-group"><label>Сумма, ₽</label><input type="number" id="ed-amount" value="${t.amount}" min="0" inputmode="decimal" style="width:100%"></div>
+      <div class="form-group"><label>Счёт / тег</label><input type="text" id="ed-account" value="${t.account||''}" style="width:100%"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="saveEdit(${id})">Сохранить</button>
+    </div>`;
+  m.addEventListener('click', e => { if (e.target === m) m.remove(); });
+  document.body.appendChild(m);
+}
+
+async function saveEdit(id) {
+  const date = document.getElementById('ed-date').value;
+  const desc = document.getElementById('ed-desc').value.trim();
+  const type = document.getElementById('ed-type').value;
+  const amount = parseFloat(document.getElementById('ed-amount').value);
+  const account = document.getElementById('ed-account').value.trim();
+  if (!desc || !amount || amount <= 0) { alert('Заполни описание и сумму'); return; }
+  const { data, error } = await sb.from('transactions').update({ date, description: desc, type, amount, account }).eq('id', id).select().single();
+  if (error) { alert('Ошибка: ' + error.message); return; }
+  const idx = state.transactions.findIndex(x => x.id === id);
+  if (idx !== -1) state.transactions[idx] = { ...data, desc: data.description };
+  document.getElementById('edit-modal').remove();
+  render();
+}
+
 async function deletePtx(id) {
   const { error } = await sb.from('project_tx').delete().eq('id', id);
   if (error) { alert('Ошибка: ' + error.message); return; }
@@ -878,18 +928,23 @@ function renderDashboard() {
   const salary = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const spent = monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
 
-  // Savings balance
+  // Savings balance (all time, including opening balance)
+  const savInit = state.transactions.filter(t => t.type === 'savings_init').reduce((s, t) => s + t.amount, 0);
   const savIn = state.transactions.filter(t => t.type === 'savings_in').reduce((s, t) => s + t.amount, 0);
   const savOut = state.transactions.filter(t => t.type === 'savings_out').reduce((s, t) => s + t.amount, 0);
-  const savBal = savIn - savOut;
+  const savBal = savInit + savIn - savOut;
 
   // Debts
   const debtsIn = state.debts.filter(d => d.dir === 'out' && !d.paid).reduce((s, d) => s + d.amount, 0);
   const debtsOut = state.debts.filter(d => d.dir === 'in' && !d.paid).reduce((s, d) => s + d.amount, 0);
 
-  // Available balance = income - expense - savings_in + savings_out
-  const balance = salary - spent - (monthTx.filter(t => t.type === 'savings_in').reduce((s,t)=>s+t.amount,0))
-                + (monthTx.filter(t => t.type === 'savings_out').reduce((s,t)=>s+t.amount,0));
+  // Available balance: opening + all-time income - all-time expenses - net savings transfers
+  const balInit = state.transactions.filter(t => t.type === 'balance_init').reduce((s, t) => s + t.amount, 0);
+  const allIncome = state.transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const allExpenses = state.transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const allSavIn = state.transactions.filter(t => t.type === 'savings_in').reduce((s, t) => s + t.amount, 0);
+  const allSavOut = state.transactions.filter(t => t.type === 'savings_out').reduce((s, t) => s + t.amount, 0);
+  const balance = balInit + allIncome - allExpenses - allSavIn + allSavOut;
 
   document.getElementById('kpi-salary').textContent = fmt(salary);
   document.getElementById('kpi-spent').textContent = fmt(spent);
@@ -945,19 +1000,20 @@ function renderTransactions() {
       <td><span class="tag ${cls}">${label}</span></td>
       <td class="${isNeg ? 'amt-neg' : 'amt-pos'}">${isNeg ? '−' : '+'}${fmt(t.amount)}</td>
       <td><span class="chip">${t.account || '—'}</span></td>
-      <td><button class="btn-sm" onclick="deleteTx(${t.id})">✕</button></td>
+      <td style="display:flex;gap:4px"><button class="btn-sm" onclick="showEditModal(${t.id})">✎</button><button class="btn-sm" onclick="deleteTx(${t.id})">✕</button></td>
     </tr>`;
   }).join('');
 }
 
 function renderSavings() {
-  const savTx = state.transactions.filter(t => t.type === 'savings_in' || t.type === 'savings_out');
+  const savTx = state.transactions.filter(t => ['savings_init','savings_in','savings_out'].includes(t.type));
+  const savInit = savTx.filter(t => t.type === 'savings_init').reduce((s,t)=>s+t.amount,0);
   const savIn = savTx.filter(t => t.type === 'savings_in').reduce((s,t)=>s+t.amount,0);
   const savOut = savTx.filter(t => t.type === 'savings_out').reduce((s,t)=>s+t.amount,0);
-  const savBal = savIn - savOut;
+  const savBal = savInit + savIn - savOut;
   document.getElementById('sav-total').textContent = fmt(savBal);
   document.getElementById('sav-total').className = 'kpi-value ' + (savBal >= 0 ? 'green' : 'red');
-  document.getElementById('sav-in').textContent = fmt(savIn);
+  document.getElementById('sav-in').textContent = fmt(savInit + savIn);
   document.getElementById('sav-out').textContent = fmt(savOut);
 
   const tbody = document.getElementById('sav-tbody');
@@ -968,12 +1024,14 @@ function renderSavings() {
   }
   let running = 0;
   const rows = sorted.map(t => {
-    const delta = t.type === 'savings_in' ? t.amount : -t.amount;
+    const delta = t.type === 'savings_out' ? -t.amount : t.amount;
     running += delta;
+    const label = t.type === 'savings_init' ? '📌 Нач. остаток' : (t.type === 'savings_in' ? '+ Пополнение' : '− Снятие');
+    const tagCls = t.type === 'savings_out' ? 'tag-out' : 'tag-save';
     return `<tr>
       <td>${t.date}</td>
       <td>${t.desc}</td>
-      <td><span class="tag ${t.type === 'savings_in' ? 'tag-save' : 'tag-out'}">${t.type === 'savings_in' ? '+ Пополнение' : '− Снятие'}</span></td>
+      <td><span class="tag ${tagCls}">${label}</span></td>
       <td class="${delta >= 0 ? 'amt-pos' : 'amt-neg'}">${delta >= 0 ? '+' : ''}${fmt(delta)}</td>
       <td class="${running >= 0 ? 'amt-pos' : 'amt-neg'}">${fmt(running)}</td>
     </tr>`;

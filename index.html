@@ -304,6 +304,37 @@
     font-size: 10px;
     color: var(--text2);
   }
+
+  @media (max-width: 640px) {
+    .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    tbody td, thead th { padding: 8px 5px; font-size: 11px; }
+
+    /* Transactions: hide Type and Account columns */
+    #tab-transactions table th:nth-child(3),
+    #tab-transactions table td:nth-child(3),
+    #tab-transactions table th:nth-child(5),
+    #tab-transactions table td:nth-child(5),
+    /* Recent on dashboard: hide Type and Account */
+    #tab-dashboard table th:nth-child(3),
+    #tab-dashboard table td:nth-child(3),
+    #tab-dashboard table th:nth-child(5),
+    #tab-dashboard table td:nth-child(5),
+    /* Savings: hide Type tag column */
+    #tab-savings table th:nth-child(3),
+    #tab-savings table td:nth-child(3),
+    /* Debts: hide Direction and Due date columns */
+    #tab-debts table th:nth-child(3),
+    #tab-debts table td:nth-child(3),
+    #tab-debts table th:nth-child(5),
+    #tab-debts table td:nth-child(5),
+    /* Projects TX: hide Type column */
+    #tab-projects table th:nth-child(4),
+    #tab-projects table td:nth-child(4) { display: none; }
+
+    /* Action buttons wrap instead of overflow */
+    tbody td:last-child { white-space: nowrap; }
+    .btn-sm { padding: 4px 7px; font-size: 11px; }
+  }
 </style>
 </head>
 <body>

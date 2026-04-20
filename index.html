@@ -812,6 +812,54 @@ async function markDebt(id) {
   render();
 }
 
+function showRepayModal(id) {
+  const d = state.debts.find(x => x.id === id);
+  if (!d) return;
+  if (document.getElementById('repay-modal')) return;
+  const isIGave = d.dir === 'out';
+  const m = document.createElement('div');
+  m.id = 'repay-modal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:1001;padding:16px';
+  m.innerHTML = `
+    <div style="background:var(--surface);border-radius:12px;padding:20px;width:100%;max-width:380px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-family:var(--font-head);font-size:14px;color:var(--accent)">${isIGave ? '💰 Вернули мне' : '✅ Я возвращаю'}</span>
+        <button onclick="document.getElementById('repay-modal').remove()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0">✕</button>
+      </div>
+      <div style="color:var(--text2);font-size:12px">${d.who} · долг ${fmt(d.amount)}</div>
+      <div class="form-group"><label>Дата</label><input type="date" id="rp-date" style="width:100%"></div>
+      <div class="form-group"><label>Сумма возврата, ₽</label><input type="number" id="rp-amount" value="${d.amount}" min="0" inputmode="decimal" style="width:100%"></div>
+      <div class="form-group"><label>Счёт / тег</label><input type="text" id="rp-account" placeholder="Тинькофф, наличные…" style="width:100%"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="submitRepayment(${id})">Записать погашение</button>
+    </div>`;
+  m.querySelector('#rp-date').value = today();
+  m.addEventListener('click', e => { if (e.target === m) m.remove(); });
+  document.body.appendChild(m);
+}
+
+async function submitRepayment(debtId) {
+  const d = state.debts.find(x => x.id === debtId);
+  if (!d) return;
+  const date = document.getElementById('rp-date').value;
+  const amount = parseFloat(document.getElementById('rp-amount').value);
+  const account = document.getElementById('rp-account').value.trim();
+  if (!amount || amount <= 0) { alert('Укажи сумму'); return; }
+  const uid = await getUid();
+  const txType = d.dir === 'out' ? 'debt_repaid_in' : 'debt_repaid_out';
+  const desc = d.dir === 'out' ? `Вернули долг: ${d.who}` : `Вернул долг: ${d.who}`;
+  const { data: txData, error: txErr } = await sb.from('transactions')
+    .insert({ user_id: uid, date, description: desc, type: txType, amount, account })
+    .select().single();
+  if (txErr) { alert('Ошибка записи транзакции: ' + txErr.message); return; }
+  state.transactions.unshift({ ...txData, desc: txData.description });
+  if (amount >= d.amount) {
+    const { error: dbErr } = await sb.from('debts').update({ paid: true }).eq('id', debtId);
+    if (!dbErr) d.paid = true;
+  }
+  document.getElementById('repay-modal').remove();
+  render();
+}
+
 async function deleteDebt(id) {
   const { error } = await sb.from('debts').delete().eq('id', id);
   if (error) { alert('Ошибка: ' + error.message); return; }
@@ -1057,8 +1105,9 @@ function renderDebts() {
       <td class="${d.dir === 'out' ? 'amt-neg' : 'amt-pos'}">${fmt(d.amount)}</td>
       <td>${d.due || '—'}</td>
       <td>${d.paid ? '✅ Закрыт' : '🕐 Активен'}</td>
-      <td style="display:flex;gap:4px">
-        <button class="btn-sm" onclick="markDebt(${d.id})">${d.paid ? 'Открыть' : '✓ Закрыть'}</button>
+      <td style="display:flex;gap:4px;flex-wrap:wrap">
+        ${!d.paid ? `<button class="btn-sm" style="background:var(--accent);color:var(--bg)" onclick="showRepayModal(${d.id})">Погасить</button>` : ''}
+        <button class="btn-sm" onclick="markDebt(${d.id})">${d.paid ? 'Открыть' : 'Закрыть'}</button>
         <button class="btn-sm" onclick="deleteDebt(${d.id})">✕</button>
       </td>
     </tr>`;

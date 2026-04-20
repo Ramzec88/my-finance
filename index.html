@@ -309,6 +309,10 @@
     .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     tbody td, thead th { padding: 8px 5px; font-size: 11px; }
 
+    .form-row { flex-direction: column; }
+    .form-group { min-width: unset !important; max-width: unset !important; width: 100%; }
+    .form-group input, .form-group select { width: 100%; box-sizing: border-box; }
+
     /* Transactions: hide Type and Account columns */
     #tab-transactions table th:nth-child(3),
     #tab-transactions table td:nth-child(3),

@@ -533,6 +533,14 @@
           <option value="in">💰 Мне дали в долг</option>
         </select>
       </div>
+      <div class="form-group">
+        <label>Откуда / куда</label>
+        <select id="d-source">
+          <option value="account">💳 Основной счёт</option>
+          <option value="savings">🏦 Копилка</option>
+          <option value="cash">💵 Наличные</option>
+        </select>
+      </div>
       <div class="form-group" style="max-width:150px">
         <label>Сумма, ₽</label>
         <input type="number" id="d-amount" placeholder="0" min="0" inputmode="decimal">
@@ -826,11 +834,18 @@ async function addDebt() {
   const dir = document.getElementById('d-dir').value;
   const amount = parseFloat(document.getElementById('d-amount').value);
   const due = document.getElementById('d-due').value;
+  const source = document.getElementById('d-source').value;
   if (!who || !amount || amount <= 0) { alert('Заполни имя и сумму'); return; }
   const uid = await getUid();
   const { data, error } = await sb.from('debts').insert({ user_id: uid, date, who, dir, amount, due, paid: false }).select().single();
   if (error) { alert('Ошибка сохранения: ' + error.message); return; }
   state.debts.push(data);
+  // Если источник — копилка и я даю в долг, списать из копилки автоматически
+  if (source === 'savings' && dir === 'out') {
+    const desc = `Дал в долг: ${who}`;
+    const { data: txData } = await sb.from('transactions').insert({ user_id: uid, date, description: desc, type: 'savings_out', amount, account: 'Копилка' }).select().single();
+    if (txData) state.transactions.unshift({ ...txData, desc: txData.description });
+  }
   render();
   document.getElementById('d-who').value = '';
   document.getElementById('d-amount').value = '';
@@ -864,7 +879,13 @@ function showRepayModal(id) {
       <div style="color:var(--text2);font-size:12px">${d.who} · долг ${fmt(d.amount)}</div>
       <div class="form-group"><label>Дата</label><input type="date" id="rp-date" style="width:100%"></div>
       <div class="form-group"><label>Сумма возврата, ₽</label><input type="number" id="rp-amount" value="${d.amount}" min="0" inputmode="decimal" style="width:100%"></div>
-      <div class="form-group"><label>Счёт / тег</label><input type="text" id="rp-account" placeholder="Тинькофф, наличные…" style="width:100%"></div>
+      <div class="form-group"><label>${isIGave ? 'Куда вернуть' : 'Откуда возвращаю'}</label>
+        <select id="rp-dest" style="width:100%">
+          <option value="account">💳 Основной счёт</option>
+          <option value="savings">🏦 Копилка</option>
+          <option value="cash">💵 Наличные</option>
+        </select>
+      </div>
       <button class="btn btn-primary" style="width:100%" onclick="submitRepayment(${id})">Записать погашение</button>
     </div>`;
   m.querySelector('#rp-date').value = today();
@@ -877,16 +898,28 @@ async function submitRepayment(debtId) {
   if (!d) return;
   const date = document.getElementById('rp-date').value;
   const amount = parseFloat(document.getElementById('rp-amount').value);
-  const account = document.getElementById('rp-account').value.trim();
+  const dest = document.getElementById('rp-dest').value;
   if (!amount || amount <= 0) { alert('Укажи сумму'); return; }
   const uid = await getUid();
-  const txType = d.dir === 'out' ? 'debt_repaid_in' : 'debt_repaid_out';
-  const desc = d.dir === 'out' ? `Вернули долг: ${d.who}` : `Вернул долг: ${d.who}`;
+  const isIGave = d.dir === 'out';
+  // Основная транзакция возврата
+  const txType = isIGave ? 'debt_repaid_in' : 'debt_repaid_out';
+  const destLabel = dest === 'savings' ? '→ копилка' : dest === 'cash' ? '→ наличные' : '';
+  const desc = isIGave
+    ? `Вернули долг: ${d.who}${destLabel ? ' ' + destLabel : ''}`
+    : `Вернул долг: ${d.who}${destLabel ? ' ' + destLabel : ''}`;
   const { data: txData, error: txErr } = await sb.from('transactions')
-    .insert({ user_id: uid, date, description: desc, type: txType, amount, account })
+    .insert({ user_id: uid, date, description: desc, type: txType, amount, account: '' })
     .select().single();
-  if (txErr) { alert('Ошибка записи транзакции: ' + txErr.message); return; }
+  if (txErr) { alert('Ошибка: ' + txErr.message); return; }
   state.transactions.unshift({ ...txData, desc: txData.description });
+  // Если деньги идут в копилку — дополнительно создать savings_in
+  if (dest === 'savings' && isIGave) {
+    const { data: savTx } = await sb.from('transactions')
+      .insert({ user_id: uid, date, description: `Возврат долга в копилку: ${d.who}`, type: 'savings_in', amount, account: 'Копилка' })
+      .select().single();
+    if (savTx) state.transactions.unshift({ ...savTx, desc: savTx.description });
+  }
   if (amount >= d.amount) {
     const { error: dbErr } = await sb.from('debts').update({ paid: true }).eq('id', debtId);
     if (!dbErr) d.paid = true;

@@ -876,6 +876,7 @@ function showRepayModal(id) {
   if (!d) return;
   if (document.getElementById('repay-modal')) return;
   const isIGave = d.dir === 'out';
+  const remaining = d.amount - (d.paid_amount || 0);
   const m = document.createElement('div');
   m.id = 'repay-modal';
   m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:1001;padding:16px';
@@ -885,9 +886,9 @@ function showRepayModal(id) {
         <span style="font-family:var(--font-head);font-size:14px;color:var(--accent)">${isIGave ? '💰 Вернули мне' : '✅ Я возвращаю'}</span>
         <button onclick="document.getElementById('repay-modal').remove()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0">✕</button>
       </div>
-      <div style="color:var(--text2);font-size:12px">${d.who} · долг ${fmt(d.amount)}</div>
+      <div style="color:var(--text2);font-size:12px">${d.who} · остаток долга <strong style="color:var(--text)">${fmt(remaining)}</strong>${d.paid_amount > 0 ? ` (из ${fmt(d.amount)})` : ''}</div>
       <div class="form-group"><label>Дата</label><input type="date" id="rp-date" style="width:100%"></div>
-      <div class="form-group"><label>Сумма возврата, ₽</label><input type="number" id="rp-amount" value="${d.amount}" min="0" inputmode="decimal" style="width:100%"></div>
+      <div class="form-group"><label>Сумма возврата, ₽</label><input type="number" id="rp-amount" value="${remaining}" min="0" inputmode="decimal" style="width:100%"></div>
       <div class="form-group"><label>${isIGave ? 'Куда вернуть' : 'Откуда возвращаю'}</label>
         <select id="rp-dest" style="width:100%">
           <option value="account">💳 Основной счёт</option>
@@ -932,10 +933,10 @@ async function submitRepayment(debtId) {
       .select().single();
     if (savTx) state.transactions.unshift({ ...savTx, desc: savTx.description });
   }
-  if (amount >= d.amount) {
-    const { error: dbErr } = await sb.from('debts').update({ paid: true }).eq('id', debtId);
-    if (!dbErr) d.paid = true;
-  }
+  const newPaidAmount = (d.paid_amount || 0) + amount;
+  const isFullyPaid = newPaidAmount >= d.amount;
+  const { error: dbErr } = await sb.from('debts').update({ paid_amount: newPaidAmount, paid: isFullyPaid }).eq('id', debtId);
+  if (!dbErr) { d.paid_amount = newPaidAmount; d.paid = isFullyPaid; }
   document.getElementById('repay-modal').remove();
   render();
 }
@@ -1064,9 +1065,9 @@ function renderDashboard() {
   const savCollected = state.transactions.filter(t => t.type === 'savings_collected').reduce((s, t) => s + t.amount, 0);
   const savBal = savInit + savIn + savCollected - savOut - savLent;
 
-  // Debts
-  const debtsIn = state.debts.filter(d => d.dir === 'out' && !d.paid).reduce((s, d) => s + d.amount, 0);
-  const debtsOut = state.debts.filter(d => d.dir === 'in' && !d.paid).reduce((s, d) => s + d.amount, 0);
+  // Debts — show remaining (after partial payments)
+  const debtsIn = state.debts.filter(d => d.dir === 'out' && !d.paid).reduce((s, d) => s + d.amount - (d.paid_amount || 0), 0);
+  const debtsOut = state.debts.filter(d => d.dir === 'in' && !d.paid).reduce((s, d) => s + d.amount - (d.paid_amount || 0), 0);
 
   // Available balance: opening + all-time income - all-time expenses - net savings transfers
   const balInit = state.transactions.filter(t => t.type === 'balance_init').reduce((s, t) => s + t.amount, 0);
@@ -1188,11 +1189,15 @@ function renderDebts() {
     const dir = d.dir === 'out'
       ? '<span class="tag tag-debt">Я дал</span>'
       : '<span class="tag tag-in">Мне дали</span>';
+    const remaining = d.amount - (d.paid_amount || 0);
+    const amtCell = (d.paid_amount > 0 && !d.paid)
+      ? `${fmt(remaining)} <span style="color:var(--muted);font-size:10px">из ${fmt(d.amount)}</span>`
+      : fmt(d.amount);
     return `<tr class="${cls}">
       <td>${d.date}</td>
       <td>${d.who}</td>
       <td>${dir}</td>
-      <td class="${d.dir === 'out' ? 'amt-neg' : 'amt-pos'}">${fmt(d.amount)}</td>
+      <td class="${d.dir === 'out' ? 'amt-neg' : 'amt-pos'}">${amtCell}</td>
       <td>${d.due || '—'}</td>
       <td>${d.paid ? '✅ Закрыт' : '🕐 Активен'}</td>
       <td style="display:flex;gap:4px;flex-wrap:wrap">

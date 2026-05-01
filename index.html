@@ -849,9 +849,9 @@ async function addDebt() {
   const { data, error } = await sb.from('debts').insert({ user_id: uid, date, who, dir, amount, due, paid: false }).select().single();
   if (error) { alert('Ошибка сохранения: ' + error.message); return; }
   state.debts.push(data);
-  // Если источник — копилка и я даю в долг, списать из копилки автоматически
-  if (source === 'savings' && dir === 'out') {
-    const desc = `Дал в долг: ${who}`;
+  // Если источник — копилка, всегда списать из неё (и я дал, и я взял сам у себя)
+  if (source === 'savings') {
+    const desc = dir === 'out' ? `Дал в долг: ${who}` : `Взял из копилки: ${who}`;
     const { data: txData } = await sb.from('transactions').insert({ user_id: uid, date, description: desc, type: 'savings_lent', amount, account: 'Копилка' }).select().single();
     if (txData) state.transactions.unshift({ ...txData, desc: txData.description });
   }
@@ -922,10 +922,13 @@ async function submitRepayment(debtId) {
     .select().single();
   if (txErr) { alert('Ошибка: ' + txErr.message); return; }
   state.transactions.unshift({ ...txData, desc: txData.description });
-  // Если деньги идут в копилку — дополнительно создать savings_in
-  if (dest === 'savings' && isIGave) {
+  // Если деньги идут в копилку — создать savings_collected (работает для обоих направлений долга)
+  if (dest === 'savings') {
+    const savDesc = isIGave
+      ? `Вернули долг в копилку: ${d.who}`
+      : `Вернул в копилку: ${d.who}`;
     const { data: savTx } = await sb.from('transactions')
-      .insert({ user_id: uid, date, description: `Возврат долга в копилку: ${d.who}`, type: 'savings_collected', amount, account: 'Копилка' })
+      .insert({ user_id: uid, date, description: savDesc, type: 'savings_collected', amount, account: 'Копилка' })
       .select().single();
     if (savTx) state.transactions.unshift({ ...savTx, desc: savTx.description });
   }

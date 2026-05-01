@@ -804,7 +804,9 @@ const TYPE_LABEL = {
   debt_repaid_in: ['✅ Вернули мне', 'tag-in'],
   debt_repaid_out: ['✅ Я вернул', 'tag-out'],
   balance_init: ['💼 Нач. остаток', 'tag-in'],
-  savings_init: ['🏦 Нач. копилка', 'tag-save']
+  savings_init: ['🏦 Нач. копилка', 'tag-save'],
+  savings_lent: ['🏦→🤝 Долг из копилки', 'tag-debt'],
+  savings_collected: ['🤝→🏦 Возврат в копилку', 'tag-save']
 };
 
 // ── Add transaction ─────────────────────────
@@ -843,7 +845,7 @@ async function addDebt() {
   // Если источник — копилка и я даю в долг, списать из копилки автоматически
   if (source === 'savings' && dir === 'out') {
     const desc = `Дал в долг: ${who}`;
-    const { data: txData } = await sb.from('transactions').insert({ user_id: uid, date, description: desc, type: 'savings_out', amount, account: 'Копилка' }).select().single();
+    const { data: txData } = await sb.from('transactions').insert({ user_id: uid, date, description: desc, type: 'savings_lent', amount, account: 'Копилка' }).select().single();
     if (txData) state.transactions.unshift({ ...txData, desc: txData.description });
   }
   render();
@@ -916,7 +918,7 @@ async function submitRepayment(debtId) {
   // Если деньги идут в копилку — дополнительно создать savings_in
   if (dest === 'savings' && isIGave) {
     const { data: savTx } = await sb.from('transactions')
-      .insert({ user_id: uid, date, description: `Возврат долга в копилку: ${d.who}`, type: 'savings_in', amount, account: 'Копилка' })
+      .insert({ user_id: uid, date, description: `Возврат долга в копилку: ${d.who}`, type: 'savings_collected', amount, account: 'Копилка' })
       .select().single();
     if (savTx) state.transactions.unshift({ ...savTx, desc: savTx.description });
   }
@@ -1044,11 +1046,13 @@ function renderDashboard() {
   const salary = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const spent = monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
 
-  // Savings balance (all time, including opening balance)
+  // Savings balance (all time, including opening balance and direct loans/returns)
   const savInit = state.transactions.filter(t => t.type === 'savings_init').reduce((s, t) => s + t.amount, 0);
   const savIn = state.transactions.filter(t => t.type === 'savings_in').reduce((s, t) => s + t.amount, 0);
   const savOut = state.transactions.filter(t => t.type === 'savings_out').reduce((s, t) => s + t.amount, 0);
-  const savBal = savInit + savIn - savOut;
+  const savLent = state.transactions.filter(t => t.type === 'savings_lent').reduce((s, t) => s + t.amount, 0);
+  const savCollected = state.transactions.filter(t => t.type === 'savings_collected').reduce((s, t) => s + t.amount, 0);
+  const savBal = savInit + savIn + savCollected - savOut - savLent;
 
   // Debts
   const debtsIn = state.debts.filter(d => d.dir === 'out' && !d.paid).reduce((s, d) => s + d.amount, 0);
@@ -1090,7 +1094,7 @@ function renderDashboard() {
   }
   tbody.innerHTML = recent.map(t => {
     const [label, cls] = TYPE_LABEL[t.type] || ['—', ''];
-    const isNeg = ['expense','savings_in','debt_given','debt_repaid_out'].includes(t.type);
+    const isNeg = ['expense','savings_in','debt_given','debt_repaid_out','savings_lent'].includes(t.type);
     return `<tr>
       <td>${t.date}</td>
       <td>${t.desc}</td>
@@ -1109,7 +1113,7 @@ function renderTransactions() {
   }
   tbody.innerHTML = state.transactions.map(t => {
     const [label, cls] = TYPE_LABEL[t.type] || ['—', ''];
-    const isNeg = ['expense','savings_in','debt_given','debt_repaid_out'].includes(t.type);
+    const isNeg = ['expense','savings_in','debt_given','debt_repaid_out','savings_lent'].includes(t.type);
     return `<tr>
       <td>${t.date}</td>
       <td>${t.desc}</td>
@@ -1122,15 +1126,17 @@ function renderTransactions() {
 }
 
 function renderSavings() {
-  const savTx = state.transactions.filter(t => ['savings_init','savings_in','savings_out'].includes(t.type));
+  const savTx = state.transactions.filter(t => ['savings_init','savings_in','savings_out','savings_lent','savings_collected'].includes(t.type));
   const savInit = savTx.filter(t => t.type === 'savings_init').reduce((s,t)=>s+t.amount,0);
   const savIn = savTx.filter(t => t.type === 'savings_in').reduce((s,t)=>s+t.amount,0);
   const savOut = savTx.filter(t => t.type === 'savings_out').reduce((s,t)=>s+t.amount,0);
-  const savBal = savInit + savIn - savOut;
+  const savLent = savTx.filter(t => t.type === 'savings_lent').reduce((s,t)=>s+t.amount,0);
+  const savCollected = savTx.filter(t => t.type === 'savings_collected').reduce((s,t)=>s+t.amount,0);
+  const savBal = savInit + savIn + savCollected - savOut - savLent;
   document.getElementById('sav-total').textContent = fmt(savBal);
   document.getElementById('sav-total').className = 'kpi-value ' + (savBal >= 0 ? 'green' : 'red');
-  document.getElementById('sav-in').textContent = fmt(savInit + savIn);
-  document.getElementById('sav-out').textContent = fmt(savOut);
+  document.getElementById('sav-in').textContent = fmt(savInit + savIn + savCollected);
+  document.getElementById('sav-out').textContent = fmt(savOut + savLent);
 
   const tbody = document.getElementById('sav-tbody');
   const sorted = [...savTx].sort((a,b) => a.date.localeCompare(b.date));
@@ -1140,10 +1146,15 @@ function renderSavings() {
   }
   let running = 0;
   const rows = sorted.map(t => {
-    const delta = t.type === 'savings_out' ? -t.amount : t.amount;
+    const isOut = t.type === 'savings_out' || t.type === 'savings_lent';
+    const delta = isOut ? -t.amount : t.amount;
     running += delta;
-    const label = t.type === 'savings_init' ? '📌 Нач. остаток' : (t.type === 'savings_in' ? '+ Пополнение' : '− Снятие');
-    const tagCls = t.type === 'savings_out' ? 'tag-out' : 'tag-save';
+    const label = {
+      savings_init: '📌 Нач. остаток', savings_in: '+ Пополнение',
+      savings_out: '− Снятие', savings_lent: '→ Дал в долг',
+      savings_collected: '← Вернули в копилку'
+    }[t.type] || t.type;
+    const tagCls = isOut ? 'tag-out' : 'tag-save';
     return `<tr>
       <td>${t.date}</td>
       <td>${t.desc}</td>

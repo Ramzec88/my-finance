@@ -491,12 +491,19 @@
       <div class="kpi-value green" id="sav-total">0 ₽</div>
     </div>
     <div class="kpi">
-      <div class="kpi-label">Внесено за всё время</div>
+      <div class="kpi-label">Пополнено всего</div>
       <div class="kpi-value blue" id="sav-in">0 ₽</div>
+      <div class="kpi-sub">вложения + нач. остаток</div>
     </div>
     <div class="kpi">
-      <div class="kpi-label">Взято из копилки</div>
+      <div class="kpi-label">Выдано из копилки</div>
       <div class="kpi-value red" id="sav-out">0 ₽</div>
+      <div class="kpi-sub">снятия + долги</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Возвращено в копилку</div>
+      <div class="kpi-value green" id="sav-returned">0 ₽</div>
+      <div class="kpi-sub">частичные возвраты</div>
     </div>
   </div>
 
@@ -1135,8 +1142,9 @@ function renderSavings() {
   const savBal = savInit + savIn + savCollected - savOut - savLent;
   document.getElementById('sav-total').textContent = fmt(savBal);
   document.getElementById('sav-total').className = 'kpi-value ' + (savBal >= 0 ? 'green' : 'red');
-  document.getElementById('sav-in').textContent = fmt(savInit + savIn + savCollected);
+  document.getElementById('sav-in').textContent = fmt(savInit + savIn);
   document.getElementById('sav-out').textContent = fmt(savOut + savLent);
+  document.getElementById('sav-returned').textContent = fmt(savCollected);
 
   const tbody = document.getElementById('sav-tbody');
   const sorted = [...savTx].sort((a,b) => a.date.localeCompare(b.date));

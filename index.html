@@ -821,14 +821,20 @@ async function addTransaction(overrides) {
   const date = (overrides && overrides.date) || document.getElementById('t-date').value;
   const desc = (overrides && overrides.desc) || document.getElementById('t-desc').value.trim();
   const type = (overrides && overrides.type) || document.getElementById('t-type').value;
-  const amount = parseFloat((overrides && overrides.amount) || document.getElementById('t-amount').value);
-  const account = (overrides && overrides.account) || document.getElementById('t-account').value.trim();
-  if (!desc || !amount || amount <= 0) { alert('Заполни описание и сумму'); return; }
+  const rawAmt = (overrides && overrides.amount != null) ? overrides.amount : document.getElementById('t-amount').value;
+  const amount = parseFloat(String(rawAmt).replace(',', '.'));
+  const account = (overrides && overrides.account !== undefined) ? overrides.account : document.getElementById('t-account').value.trim();
+  if (!desc || !date) { alert('Заполни дату и описание'); return; }
+  if (!amount || amount <= 0 || isNaN(amount)) { alert('Заполни сумму (больше 0)'); return; }
   const uid = await getUid();
+  if (!uid) { showLoginOverlay(); return; }
+  const btn = !overrides ? document.querySelector('#tab-transactions .btn-primary') : null;
+  if (btn) btn.disabled = true;
   const { data, error } = await sb.from('transactions').insert({ user_id: uid, date, description: desc, type, amount, account }).select().single();
+  if (btn) btn.disabled = false;
   if (error) { alert('Ошибка сохранения: ' + error.message); return; }
   state.transactions.unshift({ ...data, desc: data.description });
-  render();
+  try { render(); } catch(e) { console.error('render error:', e); }
   if (!overrides) {
     document.getElementById('t-desc').value = '';
     document.getElementById('t-amount').value = '';
